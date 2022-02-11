@@ -1,0 +1,636 @@
+function importCloudbeds() {
+  Logger.log("Start Import")
+  var test = "1234,222"
+  var num = test.split(",")
+  Logger.log(num)
+  Logger.log("End Import")
+}
+
+//Data Cleaning
+  //ID / Source ID
+  function clean_id(refID) {
+    Logger.log("Clean ID")
+    //ที่ต้องใส่ [0] เพราะถ้าไม่ใส่จะให้ค่าเป็น Object เราต้องการค่าที่อยู่ข้างในจึงใส่ [0] ไว้เพื่อให้ดึงค่าออกมา
+    return refID.match(/\d+/)[0]
+  }
+  
+  //Source
+  function clean_source(source) {
+    Logger.log("Clean Source")
+    switch(source){
+      case "Extranet":
+        source = "Walk-in"
+        break;
+      case "BookingButton":
+        source = "Website / Booking Engine"
+        break;
+    }
+    return source
+  }
+  
+  //Date from file Reservation (YYYY-MM-DD) to (DD/MM/YYYY)
+  function clean_date_res(date) {
+    Logger.log("Start Date")
+    var dd = date.getDate()
+    var mm = date.getMonth() + 1    //ที่ต้อง + 1 เนื่องจากคำสั่ง getMonth() จะให้ค่า 0-11 แต่เราต้องการ 1-12
+    var yyyy = date.getFullYear()
+    
+    //ในกรณีที่น้อยกว่า 10 ผลลัพท์จะแสดงเป็นเลขตัวเดียว หากต้องการเลข 0 นำหน้าด้วยต้องกำหนดลงไป
+    if(dd<10) {
+    dd='0'+dd;
+    } 
+    if(mm<10) {
+    mm='0'+mm;
+    }
+    var date = dd + "/" + mm + "/" + yyyy
+    return date
+  }
+
+  //Date from file Revenue Breakdown (DD-MM-YYYY) to (DD/MM/YYYY)
+  function clean_date_rev_bd(date) {
+    Logger.log("Start Date")
+    var dd = date.getDate()
+    var mm = date.getMonth() + 1    //ที่ต้อง + 1 เนื่องจากคำสั่ง getMonth() จะให้ค่า 0-11 แต่เราต้องการ 1-12
+    var yyyy = date.getFullYear()
+    
+    //ในกรณีที่น้อยกว่า 10 ผลลัพท์จะแสดงเป็นเลขตัวเดียว หากต้องการเลข 0 นำหน้าด้วยต้องกำหนดลงไป
+    if(dd<10) {
+    dd='0'+dd;
+    } 
+    if(mm<10) {
+    mm='0'+mm;
+    }
+    var date = dd + "/" + mm + "/" + yyyy
+    return date
+  }
+
+  //Accommodation
+  function clean_accommodation(room) {
+    //ในการ clean_accommodation จะใช้เป็น String ในกาหาค่า จึงต้องมีการ Check ก่อนว่าค่าที่ส่งมาเป็น String
+    room = room.toString()
+    var check = room.indexOf(",")
+    if (check > -1) {
+      var splitRoom = room.split(", ")
+      room = splitRoom[0].toString()
+    }
+    Logger.log("Clean Accommodation")
+    switch(room) {
+      case "Room 202":
+      case "Room 203":
+      case "Room 204":
+      case "Room 205":
+      case "Room 206":
+      case "Room 207":
+      case "Room 208":
+      case "Room 209":
+      case "Room 210":
+        var roomType = "Standard Room"
+        break;
+      case "Room 101":
+      case "Room 102":
+      case "Room 103":
+      case "Room 104":
+      case "Room 105":
+      case "Room 106":
+      case "Room 107":
+        var roomType = "Deluxe Room"
+        break;
+      case "Room 201":
+      case "Room 202":
+        var roomType = "Family Suite Room"
+        break;
+      case "Room 301 A":
+      case "Room 301 B":
+      case "Room 301 C":
+      case "Room 301 D":
+      case "Room 302 A":
+      case "Room 302 B":
+      case "Room 302 C":
+      case "Room 302 D":
+      case "Room 303 A":
+      case "Room 303 B":
+      case "Room 303 C":
+      case "Room 303 D":
+        var roomType = "Mixed 4 Bed"
+        break;
+      case "304":
+      case "305":
+        var roomType = "Family 4 Bed Shared Bathroom"
+        break;
+      case "Room 306 A":
+      case "Room 306 B":
+      case "Room 306 C":
+      case "Room 306 D":
+      case "Room 307 A":
+      case "Room 307 B":
+      case "Room 307 C":
+      case "Room 307 D":
+        var roomType = "Bed-4 Female Dormitory Room"
+        break;
+      case "Room 308 A":
+      case "Room 308 B":
+      case "Room 308 C":
+      case "Room 308 D":
+      case "Room 308 E":
+      case "Room 308 F":
+      case "Room 308 G":
+      case "Room 308 H":
+        var roomType = "Mixed 8 Bed"
+        break;
+      case "309":
+        var roomType = "Gang Room"
+        break;
+      default:
+        var roomType = "A"
+        break;
+    }
+    return roomType
+  }
+  
+  //Room per Night
+  function clean_amount(rate) {
+    Logger.log("Clean Amount")
+    // เปลี่ยนทุกข้อความเป็น String ก่อน
+    var rate = rate.toString()
+    // ถ้าชุด String ไหนมี ฿ ให้เอาออกก่อน
+    rate = rate.replace("฿","")
+    // ลบทุกตัวอักษรที่ไม่ใช่ ตัวเลข . -
+    rate = rate.replace(/[^\d\.\-]/g, "");
+    // เปลี่ยน String เป็น Float
+    var num = parseFloat(rate);
+
+    return num
+  }
+
+  //Data Approve
+  function clean_approveData(import_data) {
+    if (import_data[3] == "") {
+      import_data[3] = "no@gmail.com"
+    }
+    if (import_data[14] == "") {
+      import_data[14] = "Thailand"
+    }
+    Logger.log(import_data)
+    var check = import_data.indexOf("")
+    var num = 0
+    if (check < 0) {
+      var num = 1
+    }
+    return num
+  }
+
+  // Payment Type
+  function paymentType(id,channel,payment_database,checking_id) {
+    var checking_file = SpreadsheetApp.openById(checking_id);
+    var checking_s_payment = checking_file.getSheetByName("payment");
+    
+    var payment_type = ""
+    var check = 0
+    payment_database.forEach(function(item) {  
+      if (id == item[3]) {
+        switch (item[7]){
+          case "Cash":
+            payment_type = "Cash"
+            break;
+          case "Direct Bank Transfer":
+            payment_type = "Bank Transfer"
+            break;
+          case "OTA Paid":
+            payment_type = channel
+            break;
+          case "Card":
+            payment_type = item[7] + " : " + item[8]
+            break;
+        }
+        check = 1
+      } 
+    })
+
+    if (check == 0) {
+      var error = [id,"ไม่เจอในไฟล์ Payment Type"]
+      checking_s_payment.appendRow(error)
+      payment_type = "Cash"
+    }
+
+
+    return payment_type
+  }
+  
+  // Amount Paid
+  function amountPaid(id,payment_database) {
+      var amount_paid = 0
+      payment_database.forEach(function(item) {  
+        if (id == item[3]) {
+          amount_paid = item[10]
+        } 
+      })
+
+      return amount_paid
+    }
+
+//Import Code Block
+  // 1.ดึงข้อมูลจาก Reservation
+  // 2.ในกรณี Status เป็น Checked-in ให้นำไปใส่ใน Checking >> checked_in
+  // 3.ในกรณี Status เป็น Cancelled
+  // 4.ในกรณีที่ การจองที่ Status เป็น Check-out หรือ Confirm
+  
+  function startImport() {
+    // 1.ดึงข้อมูลจาก Reservation
+      //ดึงข้อมูล File ID 
+        var checking_id = "1Q2AEJ7v9YEmUccA1LWLwSTucgNd4uX15GhGvfOxbtiw";
+        var checking_file = SpreadsheetApp.openById(checking_id);
+        var checking_s_sheet_id = checking_file.getSheetByName("sheet_id");
+        var revenue_breakdown_id = checking_s_sheet_id.getRange(2,2).getValue();
+        var reservation_id = checking_s_sheet_id.getRange(3,2).getValue();
+        var import_id = checking_s_sheet_id.getRange(5,2).getValue();
+        var payment_id = checking_s_sheet_id.getRange(6,2).getValue();
+      
+      //เข้าถึงชุดข้อมูลในแต่ละ File
+        var revenue_breakdown_file = SpreadsheetApp.openById(revenue_breakdown_id);
+        var revenue_breakdown_s = revenue_breakdown_file.getSheetByName("data_rev_bd");
+        var revenue_breakdown_database = revenue_breakdown_s.getRange(2,1,revenue_breakdown_s.getLastRow()-1,14).getValues();
+        var reservation_file = SpreadsheetApp.openById(reservation_id);
+        var reservation_s_data = reservation_file.getSheetByName("data_res");
+        var reservation_database = reservation_s_data.getRange(2,1,reservation_s_data.getLastRow()-1,50).getValues();
+        var import_file = SpreadsheetApp.openById(import_id);
+        var import_sheet = import_file.getSheetByName("database");
+        var payment_file = SpreadsheetApp.openById(payment_id);
+        var payment_sheet = payment_file.getSheetByName("data_payment")
+        var payment_database = payment_sheet.getRange(2,1,payment_sheet.getLastRow()-1,11).getValues();
+        var checking_s_data_error = checking_file.getSheetByName("data_error");
+        var checking_s_checked_in = checking_file.getSheetByName("checked_in");
+        var checking_s_payment = checking_file.getSheetByName("payment");
+
+        payment_database = payment_database.filter(function(item) {
+          return (item[6] != "Refund");
+        })
+    
+    // 2.ในกรณี Status เป็น Checked-in ให้นำไปใส่ใน Checking >> checked_in
+      //แยกชุดข้อมูลที่เป็น Checked-in จาก reservation_database
+        var reservation_database_checked_in = reservation_database.filter(function(item) {
+          return (item[22] == "checked-in"); //item[22] = Column[Status]
+        });
+      
+      //นำชุดข้อมูลไปใส่ในไฟล์ Checking >> Checked-in
+        reservation_database_checked_in.forEach(function(item) {
+          checking_s_checked_in.appendRow(item);
+        });
+    
+    
+    // 3.ในกรณี Status เป็น Cancelled
+      //แยกชุดข้อมูลที่เป็น Cancelled จาก reservation_database
+        // 1. ชุดข้อมูลที่เป็น Cancelled ทั้งหมด
+        var reservation_database_cancelled = reservation_database.filter(function(item) {
+          return (item[22] == "cancelled"); //item[22] = Column[Status]
+        });
+        // 2. ชุดข้อมูล Cancelled ที่จองมา 1 ห้อง
+        var reservation_database_cancelled_1room = reservation_database_cancelled.filter(function(item) {
+          return (item[39] == 1); //item[39] = Column[Number of Room]
+        });
+        // 3. ชชุดข้อมูล Cancelled ที่จองมามากกว่า 1 ห้อง
+        var reservation_database_cancelled_more1room = reservation_database_cancelled.filter(function(item) {
+          return (item[39] > 1); //item[39] = Column[Number of Room]
+        });
+      
+      //ในกรณี Status เป็น Cancelled และ Number of Room มี 1 ห้อง นำข้อมูลไปใส่ใน Import
+        //Clean Data ก่อนนำไปใส่ใน Import
+          reservation_database_cancelled_1room.forEach(function(item) {
+            var import_data = []
+            import_data.push(clean_id(item[0]))                 //ID
+            import_data.push(item[5])                           //First Name
+            import_data.push(item[6])                           //Last Name
+            import_data.push(item[7])                           //Email
+            import_data.push(clean_date_res(item[16]))          //Arrival Date
+            import_data.push(clean_date_res(item[17]))          //Departure Date
+            import_data.push(clean_accommodation(item[49]))     //Accommodation
+            import_data.push(item[36])                          //Adults
+            import_data.push(item[37])                          //Children
+            import_data.push(item[26])                          //Total Room Rate
+            import_data.push(clean_source(item[3]))             //Source
+            import_data.push(item[22])                          //Status
+            import_data.push(paymentType(item[0],clean_source(item[3]),payment_database,checking_id)) // Payment Type
+            import_data.push(amountPaid(item[0],payment_database))                                    // Amount Paid
+            import_data.push(item[14])                          //Country
+            import_data.push(item[39])                          //Add Accommodation
+            var checkData = clean_approveData(import_data);
+        //นำข้อมูลที่มีการเช็คว่า Clean แล้วมาใส่ใน Import
+            if (checkData == 1) {
+              import_sheet.appendRow(import_data);
+            } else {
+              var error_data = [item[0],item[1],"ข้อมูลไม่ครบ"]
+              checking_s_data_error.appendRow(error_data)
+            }
+          });
+      
+      //ในกรณี Status เป็น Cancelled และ Number of Room มีมากกว่า 1 ห้อง ให้ Check ว่าเป็นห้องเดียวกันมั้ยก่อนนำไปใส่ใน Import
+        //แยก Room Number ของทุกห้องที่ทำการจอง
+          Logger.log(reservation_database_cancelled_more1room.length)
+          reservation_database_cancelled_more1room.forEach(function(item) {
+            //เปลี่ยนให้ item[49] >> Room Number เป็น String ก่อนเพื่อให้สามารถนำเข้า Function .match(/\d+/g) ได้
+            item[49] = item[49].toString()
+            Logger.log(typeof item[49])
+            var splitRoom = item[49].split(", ")
+            Logger.log(splitRoom)
+        //นำแต่ละ Room Number ไป clean_accommodation เพื่อหา Room Type โดยนำไปใส่ใน Array roomType
+            var count = splitRoom.length
+            var roomType = []
+            for (var i=0;i<count;i++) {
+              Logger.log(typeof splitRoom[i])
+              roomType.push(clean_accommodation(splitRoom[i]))
+            }
+        //นำมาตรวจสอบว่าเป็ยประเภทห้องเดียวกันมั้ย
+            Logger.log(roomType)
+            var check = roomType.every(function(room) {
+              return room == roomType[0]
+            })
+            Logger.log(check)
+        //ถ้าเเป็น True ให้นำ Total Amount ไปหารด้วยจำนวนห้อง และนำไปใส่ใน Import โดยเพิ่ม Add Acoomodation ด้วย  
+          // ถ้าเหมือนกัน check จะได้ True ถ้าไม่เหมือกันจะได้ False
+            if (check == true) {
+            //Clean Data ก่อนนำไปใส่ใน Import
+              var import_data = []
+              import_data.push(clean_id(item[0]))                 //ID
+              import_data.push(item[5])                           //First Name
+              import_data.push(item[6])                           //Last Name
+              import_data.push(item[7])                           //Email
+              import_data.push(clean_date_res(item[16]))          //Arrival Date
+              import_data.push(clean_date_res(item[17]))          //Departure Date
+              //Accommodation ถูก Clean เรียบร้อยแล้วตั้งแต่ Process ก่อนหน้า สามารถใช้ข้อมูลอันไหนก็ได้ในการนำไปใส่
+              import_data.push(roomType[0])                       //Accommodation
+              import_data.push(item[36])                          //Adults
+              import_data.push(item[37])                          //Children
+              import_data.push(item[26])                          //Total Room Rate
+              import_data.push(clean_source(item[3]))             //Source
+              import_data.push(item[22])                          //Status
+              import_data.push(paymentType(item[0],clean_source(item[3]),payment_database,checking_id)) // Payment Type
+              import_data.push(amountPaid(item[0],payment_database))                                           // Amount Paid
+              import_data.push(item[14])                          //Country
+              import_data.push(item[39])                          //Add Accommodation
+              var checkData = clean_approveData(import_data);
+            //หา Amount ของแต่ละ Accommodation โดยการนำ Total Amount มาหารด้วยจำนวนห้อง (Add Accommodation)
+              import_data[9] = import_data[9]/import_data[15]
+            //นำข้อมูลที่มีการเช็คว่า Clean แล้วมาใส่ใน Import
+              if (checkData == 1) {
+              import_sheet.appendRow(import_data);
+              } else {
+              var error_data = [item[0],item[1],"ข้อมูลไม่ครบ"]
+              checking_s_data_error.appendRow(error_data)
+              }
+            //Add Accommodation
+              for (i=0;i<(item[39]-1);i++) {
+                var add_acc = []
+                for (n=0;n<4;n++) {
+                  add_acc.push("") 
+                }
+                add_acc.push(import_data[4])
+                add_acc.push(import_data[5])
+                add_acc.push(import_data[6])
+                add_acc.push(import_data[7])
+                add_acc.push(import_data[8])
+                add_acc.push(import_data[9])
+                import_sheet.appendRow(add_acc);
+              }
+
+          //ถ้าเป็น False ให้นำไปใส่ใน Checking โดยให้ขึ้น Status ว่า "Cancelled / Number of Room > 1 / Diff. Room Type"
+            } else {
+              var error_data = [item[0],item[1],"Cancelled / Number of Room > 1 / ห้องคนละประเภท"]
+              checking_s_data_error.appendRow(error_data)
+            }
+          });
+
+    // 4.ในกรณีที่ การจองที่ Status เป็น Check-out หรือ Confirm 
+      //แยกชุดข้อมูลที่เป็น Checked-out หรือ Confirmed จาก reservation_database
+        var reservation_database_COorCon = reservation_database.filter(function(item) {
+          return (item[22] == "checked-out" || item[22] == "confirmed"); //item[22] = Column[Status]
+        });
+      //นำแต่ละข้อมูลไป Filter หาใน Revenue Breakdown
+        reservation_database_COorCon.forEach(function(reservation) {
+          var reservation_database_revBD = revenue_breakdown_database.filter(function(item){
+            return (item[1] == reservation[0])
+          })
+        // ในกรณีที่หาไม่เจอ ให้นำไปใส่ใน Checking โดยให้ขึ้น Status ว่า "Not Match / ไม่พบข้อมูลที่ตรงกับระหว่าง Res <> Rev_BD"
+        // ในกรณีที่หาไม่เจอให้จบของ Reservation นี้ได้เลย
+          if (reservation_database_revBD.length == 0) {
+            var error_data = [reservation[0],reservation[1],"Not Match / ไม่พบข้อมูลที่ตรงกับระหว่าง Res <> Rev_BD"]
+            checking_s_data_error.appendRow(error_data)
+        // ในกรณีที่หาเจอ ให้นำ Room per Night จากข้อมูลใน Revenue Breakdown มาบวกกัน  
+          } else {
+          // ต้องให้ใช้ได้ทั้งกรณี LOS >= 1 ด้วย และ ต้อง Clean data ของ Room per Night ก่อนด้วย
+          var total_amount_revBD = 0
+          reservation_database_revBD.forEach(function(item) {
+            total_amount_revBD = total_amount_revBD + clean_amount(item[10])
+          })
+        // ถ้าจำนวนรวมระหว่างชีท Reservation และ Revenue Breakdown ไม่เท่ากัน ให้นำไปใส่ใน Checking 
+        // โดยให้ขึ้น Status ว่า "Diff. Total Amount / จำนวนรวมราคาระหว่างชีทไม่เท่ากัน"
+        // ถ้าไม่เท่ากัน ให้ใส่ใน Checking แล้วจบ Reservation นี้ได้เลย
+            //กำหนดให้ทศนิยม 2 ตำแหน่งเพื่อป้องกัน Error
+            total_amount_revBD = total_amount_revBD.toFixed(2)
+            Logger.log(total_amount_revBD)
+            if (clean_amount(reservation[26]) != total_amount_revBD) {     // Column[26] >> Subtotal Amount
+              var error_data = [reservation[0],reservation[1],"Diff. Total Amount / จำนวนรวมราคาระหว่างชีทไม่เท่ากัน"]
+              checking_s_data_error.appendRow(error_data)
+            } else {
+            // ในกรณีที่ที่ Payment Total และ Subtotal Amount จำนวนไม่เท่ากัน ให้นำไปใส่ใน Error Checking 
+            // โดยให้ขึ้น Status ว่า "มี Extra Payment หรือ Discount"
+            // ถ้ามี Extra Total Amount หรือ Discount ให้ใส่ใน Checking แล้วจบ Reservation นี้ได้เลย
+              if (reservation[34] != reservation[26]) {      //Column[34] >> Payment Total / Column[26] >> Subtotal Amount
+                var error_data = [reservation[0],reservation[1],"มี Extra Payment หรือ Discount"]
+                checking_s_data_error.appendRow(error_data)
+              // มาถึงตรงนี้ Reservation จะถูกกรองในส่วนที่ Error Checking ทั้งหมดแล้ว รอ Import เพียงอย่างเดียว
+              } else {
+              // แยกกรณีของ Number of Room และ LOS
+                // ในกรณี Number of Room = 1 และ LOS >= 1 นำไปใส่ใน Import ได้เลย
+                if (reservation[39] == 1 && reservation[18] >= 1) {     //  Column[39] >> Number of Room / Column [18] >> LOS
+                // นำไปใส่ใน Import ได้เลย
+                    var import_data = []
+                    import_data.push(clean_id(reservation[0]))                 //ID
+                    import_data.push(reservation[5])                           //First Name
+                    import_data.push(reservation[6])                           //Last Name
+                    import_data.push(reservation[7])                           //Email
+                    import_data.push(clean_date_res(reservation[16]))          //Arrival Date
+                    import_data.push(clean_date_res(reservation[17]))          //Departure Date
+                    import_data.push(clean_accommodation(reservation[49]))     //Accommodation
+                    import_data.push(reservation[36])                          //Adults
+                    import_data.push(reservation[37])                          //Children
+                    import_data.push(reservation[26])                          //Total Room Rate
+                    import_data.push(clean_source(reservation[3]))             //Source
+                    import_data.push(reservation[22])                          //Status
+                    import_data.push(paymentType(reservation[0],clean_source(reservation[3]),payment_database,checking_id)) // Payment Type
+                    import_data.push(amountPaid(reservation[0],payment_database))                                           // Amount Paid
+                    import_data.push(reservation[14])                          //Country
+                    import_data.push(reservation[39])                          //Add Accommodation
+                    var checkData = clean_approveData(import_data);
+                  //นำข้อมูลที่มีการเช็คว่า Clean แล้วมาใส่ใน Import
+                    if (checkData == 1) {
+                      import_sheet.appendRow(import_data);
+                    } else {
+                      var error_data = [reservation[0],reservation[1],"ข้อมูลไม่ครบ"]
+                      checking_s_data_error.appendRow(error_data)
+                    }
+                } 
+                // ในกรณี Number of Room > 1 และ LOS = 1
+                if (reservation[39] > 1 && reservation[18] == 1) {            //  Column[39] >> Number of Room / Column [18] >> LOS
+                  Logger.log("อยู่นี้โว้ย")
+                // แยกรวมราคาของแต่ละเลขห้อง
+                  // แยก Room จาก Column[49] ใน Reservation 
+                    var splitRoom = reservation[49].split(", ")
+                    Logger.log(splitRoom)
+                  // นำแต่ละห้องไปหาผลรวมจาก Revenue Breakdown โดยอิงจาก ID และ Rooms
+                    var count = splitRoom.length
+                    var eachRoom_amount = []
+                    for (var i=0;i<count;i++) {
+                      var amount = 0
+                      reservation_database_revBD.forEach(function(item) {
+                        if (item[9] == splitRoom[i]) {                        // Column[9] >> Room Number
+                          amount = amount + clean_amount(item[10])            // Column[10] >> Rate per Night
+                        }
+                        return amount
+                      })
+                      eachRoom_amount.push(amount)
+                    }
+                  //นำแต่ละ Room Number ไป clean_accommodation เพื่อหา Room Type โดยนำไปใส่ใน Array roomType
+                    var count = splitRoom.length
+                    Logger.log(count)
+                    var roomType = []
+                    for (var i=0;i<count;i++) {
+                      Logger.log(typeof splitRoom[i])
+                      roomType.push(splitRoom[i])
+                    }
+                  // นำไปใส่ในไฟล์ Import พร้อม Add Accommodation
+                    var import_data = []
+                    import_data.push(clean_id(reservation[0]))                 //ID
+                    import_data.push(reservation[5])                           //First Name
+                    import_data.push(reservation[6])                           //Last Name
+                    import_data.push(reservation[7])                           //Email
+                    import_data.push(clean_date_res(reservation[16]))          //Arrival Date
+                    import_data.push(clean_date_res(reservation[17]))          //Departure Date
+                    import_data.push(clean_accommodation(roomType[0]))         //Accommodation
+                    import_data.push(reservation[36])                          //Adults
+                    import_data.push(reservation[37])                          //Children
+                    import_data.push(eachRoom_amount[0])                       //Total Room Rate
+                    import_data.push(clean_source(reservation[3]))             //Source
+                    import_data.push(reservation[22])                          //Status
+                    import_data.push(paymentType(reservation[0],clean_source(reservation[3]),payment_database,checking_id)) // Payment Type
+                    import_data.push(amountPaid(reservation[0],payment_database))                                           // Amount Paid
+                    import_data.push(reservation[14])                          //Country
+                    import_data.push(reservation[39])                          //Add Accommodation
+                    var checkData = clean_approveData(import_data);
+                  //นำข้อมูลที่มีการเช็คว่า Clean แล้วมาใส่ใน Import
+                    if (checkData == 1) {
+                      import_sheet.appendRow(import_data);
+                    } else {
+                      var error_data = [reservation[0],reservation[1],"ข้อมูลไม่ครบ"]
+                      checking_s_data_error.appendRow(error_data)
+                    }
+                  // Add Accommodation
+                    for (i=1;i<(reservation[39]);i++) {
+                      var add_acc = []
+                      for (n=0;n<4;n++) {
+                        add_acc.push("") 
+                      }
+                      add_acc.push(import_data[4])
+                      add_acc.push(import_data[5])
+                      add_acc.push(clean_accommodation(roomType[i]))
+                      add_acc.push(import_data[7])
+                      add_acc.push(import_data[8])
+                      add_acc.push(eachRoom_amount[i])
+                      import_sheet.appendRow(add_acc);
+                    }
+                }
+                // ในกรณี Number of Room > 1 และ LOS > 1
+                if (reservation[39] > 1 && reservation[18] > 1) {       //  Column[39] >> Number of Room / Column [18] >> LOS
+                  // แยก Room จาก Column[49] ใน Reservation
+                    var splitRoom = reservation[49].split(", ")
+                  // นำแต่ละ Room ไปหาใน Revenue Breakdown ว่าจำนวนคืนเท่ากันมั้ย
+                    var countRoom = []
+                    for (i=0;i<reservation[39];i++) {                   //  Column[39] >> Number of Room
+                      var eachRoom_LOS = reservation_database_revBD.filter(function(item) {
+                        return (item[9] == splitRoom[i])
+                      })
+                      countRoom.push(eachRoom_LOS.length)
+                    }
+                  // ตรวจสอบว่าจำนวนคืนในแต่ละห้องเท่ากันมั้ย
+                    var check = countRoom.every(function(room) {
+                      return room == countRoom[0]
+                    })
+                  // ถ้าเป็น True แสดงว่าเท่ากันให้แยกประเภทห้องและรวมราคาของแต่ละห้อง
+                  // นำไปใส่ในไฟล์ [Import] พร้อมข้อมูลที่จะใช้ทำ Add Accommodation
+                    if (check == true) {
+                      // นำแต่ละห้องไปหาผลรวมจาก Revenue Breakdown โดยอิงจาก ID และ Rooms
+                        var count = splitRoom.length
+                        var eachRoom_amount = []
+                        for (var i=0;i<count;i++) {
+                          var amount = 0
+                          reservation_database_revBD.forEach(function(item) {
+                            if (item[9] == splitRoom[i]) {                        // Column[9] >> Room Number
+                              amount = amount + clean_amount(item[10])            // Column[10] >> Rate per Night
+                            }
+                            return amount
+                          })
+                          eachRoom_amount.push(amount)
+                        }
+                      //นำแต่ละ Room Number ไป clean_accommodation เพื่อหา Room Type โดยนำไปใส่ใน Array roomType
+                        var count = splitRoom.length
+                        var roomType = []
+                        for (var i=0;i<count;i++) {
+                          Logger.log(typeof splitRoom[i])
+                          roomType.push(splitRoom[i])
+                        }
+                      // นำไปใส่ในไฟล์ Import พร้อม Add Accommodation
+                        var import_data = []
+                        import_data.push(clean_id(reservation[0]))                 //ID
+                        import_data.push(reservation[5])                           //First Name
+                        import_data.push(reservation[6])                           //Last Name
+                        import_data.push(reservation[7])                           //Email
+                        import_data.push(clean_date_res(reservation[16]))          //Arrival Date
+                        import_data.push(clean_date_res(reservation[17]))          //Departure Date
+                        import_data.push(clean_accommodation(roomType[0]))         //Accommodation
+                        import_data.push(reservation[36])                          //Adults
+                        import_data.push(reservation[37])                          //Children
+                        import_data.push(eachRoom_amount[0])                       //Total Room Rate
+                        import_data.push(clean_source(reservation[3]))             //Source
+                        import_data.push(reservation[22])                          //Status
+                        import_data.push(paymentType(reservation[0],clean_source(reservation[3]),payment_database,checking_id)) // Payment Type
+                        import_data.push(amountPaid(reservation[0],payment_database))                                           // Amount Paid
+                        import_data.push(reservation[14])                          //Country
+                        import_data.push(reservation[39])                          //Add Accommodation
+                        var checkData = clean_approveData(import_data);
+                      //นำข้อมูลที่มีการเช็คว่า Clean แล้วมาใส่ใน Import
+                        if (checkData == 1) {
+                          import_sheet.appendRow(import_data);
+                        } else {
+                          var error_data = [reservation[0],reservation[1],"ข้อมูลไม่ครบ"]
+                          checking_s_data_error.appendRow(error_data)
+                        }
+                      // Add Accommodation
+                        for (i=1;i<(reservation[39]);i++) {
+                          var add_acc = []
+                          for (n=0;n<4;n++) {
+                            add_acc.push("") 
+                          }
+                          add_acc.push(import_data[4])
+                          add_acc.push(import_data[5])
+                          add_acc.push(clean_accommodation(roomType[i]))
+                          add_acc.push(import_data[7])
+                          add_acc.push(import_data[8])
+                          add_acc.push(eachRoom_amount[i])
+                          import_sheet.appendRow(add_acc);
+                          Logger.log(add_acc)
+                        }
+                    // ถ้าไม่เท่ากันให้ใส่ใน Checking โดยให้ขึ้น Status ว่า "Number of Room > 1 / LOS > 1 / จำนวนคืนแต่ละห้องไม่เท่ากัน"
+                    } else {
+                      var error_data = [reservation[0],reservation[1],"Number of Room > 1 / LOS > 1 / จำนวนคืนแต่ละห้องไม่เท่ากัน"]
+                      checking_s_data_error.appendRow(error_data)
+                    } 
+                    //จบแล้วจ้า
+                }
+              }
+            }
+          }
+        })
+  }  
+
+
+
+
+
